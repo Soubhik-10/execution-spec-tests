@@ -36,6 +36,7 @@ from ethereum_test_forks import (
     Shanghai,
     ShanghaiToCancunAtTime15k,
 )
+from ethereum_test_forks.forks.forks import Amsterdam
 
 
 def get_blob_schedule_entries(fork: Fork) -> Dict[str, int]:
@@ -472,5 +473,28 @@ ruleset: Dict[Fork, Dict[str, int]] = {
         "HIVE_BPO3_TIMESTAMP": 0,
         "HIVE_BPO4_TIMESTAMP": 15000,
         **get_blob_schedule_entries(BPO4),
+    },
+    Amsterdam: {
+        "HIVE_FORK_HOMESTEAD": 0,
+        "HIVE_FORK_TANGERINE": 0,
+        "HIVE_FORK_SPURIOUS": 0,
+        "HIVE_FORK_BYZANTIUM": 0,
+        "HIVE_FORK_CONSTANTINOPLE": 0,
+        "HIVE_FORK_PETERSBURG": 0,
+        "HIVE_FORK_ISTANBUL": 0,
+        "HIVE_FORK_BERLIN": 0,
+        "HIVE_FORK_LONDON": 0,
+        "HIVE_FORK_MERGE": 0,
+        "HIVE_TERMINAL_TOTAL_DIFFICULTY": 0,
+        "HIVE_SHANGHAI_TIMESTAMP": 0,
+        "HIVE_CANCUN_TIMESTAMP": 0,
+        "HIVE_PRAGUE_TIMESTAMP": 0,
+        "HIVE_OSAKA_TIMESTAMP": 0,
+        "HIVE_BPO1_TIMESTAMP": 0,
+        "HIVE_BPO2_TIMESTAMP": 0,
+        "HIVE_BPO3_TIMESTAMP": 0,
+        "HIVE_BPO4_TIMESTAMP": 15000,
+        "HIVE_AMSTERDAM_TIMESTAMP": 0,
+        **get_blob_schedule_entries(Amsterdam),
     },
 }
