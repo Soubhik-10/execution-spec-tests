@@ -338,7 +338,7 @@ class BuiltBlock(CamelModel):
                 if self.withdrawals is not None
                 else None
             ),
-            block_access_list=self.block_access_list.rlp() if self.block_access_list else None,
+            block_access_list=self.block_access_list.rlp if self.block_access_list else None,
             fork=self.fork,
         ).with_rlp(txs=self.txs)
 
@@ -369,6 +369,7 @@ class BuiltBlock(CamelModel):
             requests=self.requests,
             validation_error=self.expected_exception,
             error_code=self.engine_api_error_code,
+            block_access_list=self.block_access_list.rlp if self.block_access_list else None,
         )
 
     def verify_transactions(self, transition_tool_exceptions_reliable: bool) -> List[int]:
@@ -612,15 +613,18 @@ class BlockchainTest(BaseTest):
             requests_list = block.requests
 
         if fork.header_bal_hash_required(header.number, header.timestamp):
-            if transition_tool_output.result.block_access_list is not None:
-                rlp = transition_tool_output.result.block_access_list.rlp()
-                computed_bal_hash = Hash(rlp.keccak256())
-                if computed_bal_hash != header.block_access_list_hash:
-                    raise Exception(
-                        "Block access list hash in header does not match the "
-                        f"computed hash from BAL: {header.block_access_list_hash} "
-                        f"!= {computed_bal_hash}"
-                    )
+            assert transition_tool_output.result.block_access_list is not None, (
+                "Block access list is required for this block but was not provided "
+                "by the transition tool"
+            )
+
+            rlp = transition_tool_output.result.block_access_list.rlp
+            computed_bal_hash = Hash(rlp.keccak256())
+            assert computed_bal_hash == header.block_access_list_hash, (
+                "Block access list hash in header does not match the "
+                f"computed hash from BAL: {header.block_access_list_hash} "
+                f"!= {computed_bal_hash}"
+            )
 
         if block.rlp_modifier is not None:
             # Modify any parameter specified in the `rlp_modifier` after

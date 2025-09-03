@@ -123,6 +123,7 @@ __all__ = (
     "Bytes",
     "CalldataCase",
     "Case",
+    "ChainConfig",
     "CodeGasMeasure",
     "Conditional",
     "ConsolidationRequest",
