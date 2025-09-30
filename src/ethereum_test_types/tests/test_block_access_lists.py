@@ -143,7 +143,8 @@ def test_partial_validation():
         account_expectations={
             alice: BalAccountExpectation(
                 nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
-                # balance_changes and storage_reads not set and won't be validated
+                # balance_changes and storage_reads not set and won't be
+                # validated
             ),
         }
     )
@@ -334,12 +335,89 @@ def test_actual_bal_tx_indices_ordering(field_name):
         expectation.verify_against(actual_bal)
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    ["nonce_changes", "balance_changes", "code_changes"],
+)
+def test_actual_bal_duplicate_tx_indices(field_name):
+    """
+    Test that actual BAL must not have duplicate tx indices in change lists.
+    """
+    addr = Address(0xA)
+
+    # Duplicate tx_index=1
+    changes = []
+    if field_name == "nonce_changes":
+        changes = [
+            BalNonceChange(tx_index=1, post_nonce=1),
+            BalNonceChange(tx_index=1, post_nonce=2),  # duplicate tx_index
+            BalNonceChange(tx_index=2, post_nonce=3),
+        ]
+    elif field_name == "balance_changes":
+        changes = [
+            BalBalanceChange(tx_index=1, post_balance=100),
+            BalBalanceChange(tx_index=1, post_balance=200),  # duplicate tx_index
+            BalBalanceChange(tx_index=2, post_balance=300),
+        ]
+    elif field_name == "code_changes":
+        changes = [
+            BalCodeChange(tx_index=1, new_code=b"code1"),
+            BalCodeChange(tx_index=1, new_code=b""),  # duplicate tx_index
+            BalCodeChange(tx_index=2, new_code=b"code2"),
+        ]
+
+    actual_bal = BlockAccessList([BalAccountChange(address=addr, **{field_name: changes})])
+
+    expectation = BlockAccessListExpectation(account_expectations={})
+
+    with pytest.raises(
+        BlockAccessListValidationError,
+        match=f"Duplicate transaction indices in {field_name}.*Duplicates: \\[1\\]",
+    ):
+        expectation.verify_against(actual_bal)
+
+
+def test_actual_bal_storage_duplicate_tx_indices():
+    """
+    Test that storage changes must not have duplicate tx indices within same
+    slot.
+    """
+    addr = Address(0xA)
+
+    # Create storage changes with duplicate tx_index within the same slot
+    actual_bal = BlockAccessList(
+        [
+            BalAccountChange(
+                address=addr,
+                storage_changes=[
+                    BalStorageSlot(
+                        slot=0x01,
+                        slot_changes=[
+                            BalStorageChange(tx_index=1, post_value=0x100),
+                            BalStorageChange(tx_index=1, post_value=0x200),  # duplicate tx_index
+                            BalStorageChange(tx_index=2, post_value=0x300),
+                        ],
+                    )
+                ],
+            )
+        ]
+    )
+
+    expectation = BlockAccessListExpectation(account_expectations={})
+
+    with pytest.raises(
+        BlockAccessListValidationError,
+        match="Duplicate transaction indices in storage slot.*Duplicates: \\[1\\]",
+    ):
+        expectation.verify_against(actual_bal)
+
+
 def test_expected_addresses_auto_sorted():
     """
     Test that expected addresses are automatically sorted before comparison.
 
-    The BAL *Expectation address order should not matter for the dict.
-    We DO, however, validate that the actual BAL (from t8n) is sorted correctly.
+    The BAL *Expectation address order should not matter for the dict. We DO,
+    however, validate that the actual BAL (from t8n) is sorted correctly.
     """
     alice = Address(0xA)
     bob = Address(0xB)
@@ -815,7 +893,8 @@ def test_absent_values_with_multiple_tx_indices():
             alice: BalAccountExpectation(
                 absent_values=BalAccountAbsentValues(
                     nonce_changes=[
-                        # wrongly forbid change at txs 1 and 2 (1 exists, so should fail)
+                        # wrongly forbid change at txs 1 and 2
+                        # (1 exists, so should fail)
                         BalNonceChange(tx_index=1, post_nonce=1),
                         BalNonceChange(tx_index=2, post_nonce=0),
                     ]
@@ -961,13 +1040,19 @@ def test_bal_account_absent_values_comprehensive():
     ],
 )
 def test_bal_account_absent_values_empty_list_validation_raises(field_name, field_value):
-    """Test that empty lists in BalAccountAbsentValues fields raise appropriate errors."""
+    """
+    Test that empty lists in BalAccountAbsentValues fields
+    raise appropriate errors.
+    """
     with pytest.raises(ValueError, match="Empty lists are not allowed"):
         BalAccountAbsentValues(**{field_name: field_value})
 
 
 def test_bal_account_absent_values_empty_slot_changes_raises():
-    """Test that empty slot_changes in storage_changes raises appropriate error."""
+    """
+    Test that empty slot_changes in storage_changes
+    raises appropriate error.
+    """
     with pytest.raises(ValueError, match="Empty lists are not allowed"):
         BalAccountAbsentValues(
             storage_changes=[
