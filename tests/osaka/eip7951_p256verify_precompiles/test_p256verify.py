@@ -125,6 +125,22 @@ def test_wycheproof_extra(state_test: StateTestFiller, pre: Alloc, post: dict, t
             id="hash_max",
         ),
         pytest.param(
+            H(Spec.N + 1 - Spec.Gx) + R(Spec.Gx) + S(1) + X(Spec.Gx) + Y(Spec.Gy),
+            id="s_1",
+        ),
+        pytest.param(
+            H(Spec.N - 1 - Spec.Gx) + R(Spec.Gx) + S(Spec.N - 1) + X(Spec.Gx) + Y(Spec.Gy),
+            id="s_N_minus_1",
+        ),
+        pytest.param(
+            H(((2**256 - 1) % Spec.N) - Spec.Gx + Spec.N)
+            + R(Spec.Gx)
+            + S((2**256 - 1) % Spec.N)
+            + X(Spec.Gx)
+            + Y(Spec.Gy),
+            id="s_max_mod_N",
+        ),
+        pytest.param(
             H(0xC3D3BE9EB3577F217AE0AB360529A30B18ADC751AEC886328593D7D6FE042809)
             + R(0x3A4E97B44CBF88B90E6205A45BA957E520F63F3C6072B53C244653278A1819D8)
             + S(0x6A184AA037688A5EBD25081FD2C0B10BB64FA558B671BD81955CA86E09D9D722)
@@ -139,6 +155,25 @@ def test_wycheproof_extra(state_test: StateTestFiller, pre: Alloc, post: dict, t
             + X(0)
             + Y(0x99B7A386F1D07C29DBCC42A27B5F9449ABE3D50DE25178E8D7407A95E8B06C0B),
             id="x_0_y_negative",
+        ),
+        # Test case for u1==u2 and Q==G.
+        # This test case is important because u1*G + u2*Q is point doubling.
+        pytest.param(
+            H(0x7CF27B188D034F7E8A52380304B51AC3C08969E277F21B35A60B48FC47669978)
+            + R(0x7CF27B188D034F7E8A52380304B51AC3C08969E277F21B35A60B48FC47669978)
+            + S(0x830D84E672FCB08275ADC7FCFB4AE53BFC5D90CB2F25834F4DAE81C6B4FC8BD9)
+            + X(Spec.Gx)
+            + Y(Spec.Gy),
+            id="u1_eq_u2_and_Q_eq_G",
+        ),
+        # Test case for u1==u2 and Q!=G.
+        pytest.param(
+            H(0x65FB4407BCB2A33AE2E486366BAA79B3A8A17A83DDE0FED6F09014A8AC6F78A1)
+            + R(0x65FB4407BCB2A33AE2E486366BAA79B3A8A17A83DDE0FED6F09014A8AC6F78A1)
+            + S(0x65FB4407BCB2A33AE2E486366BAA79B3A8A17A83DDE0FED6F09014A8AC6F78A1)
+            + Spec.X0
+            + Spec.Y0,
+            id="u1_eq_u2_and_Q_ne_G",
         ),
     ],
 )
@@ -198,12 +233,74 @@ def test_valid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transact
             id="r_eq_to_n",
         ),
         pytest.param(
+            Spec.H1 + R(Spec.R1.value + Spec.N) + Spec.S1 + Spec.X1 + Spec.Y1,
+            id="r_above_n",
+        ),
+        pytest.param(
+            Spec.H0 + R(2**256 - 1) + Spec.S0 + Spec.X0 + Spec.Y0,
+            id="r_max",
+        ),
+        pytest.param(
             Spec.H0 + Spec.R0 + S(0) + Spec.X0 + Spec.Y0,
             id="s_eq_to_zero",
         ),
         pytest.param(
             Spec.H0 + Spec.R0 + S(Spec.N) + Spec.X0 + Spec.Y0,
             id="s_eq_to_n",
+        ),
+        # If checks for r, s, and point-at-infinity are missing, the s=0 zeros
+        # both u1 and u2, so the computed R is the point at infinity,
+        # and the signature may be considered valid in such implementation.
+        pytest.param(
+            Spec.H0 + R(0) + S(0) + X(Spec.Gx) + Y(Spec.Gy),
+            id="r_0_s_0",
+        ),
+        pytest.param(
+            Spec.H0 + R(0) + S(Spec.N) + X(Spec.Gx) + Y(Spec.Gy),
+            id="r_0_s_N",
+        ),
+        pytest.param(
+            Spec.H0 + R(Spec.N) + S(0) + X(Spec.Gx) + Y(Spec.Gy),
+            id="r_N_s_0",
+        ),
+        pytest.param(
+            Spec.H0 + R(Spec.N) + S(Spec.N) + X(Spec.Gx) + Y(Spec.Gy),
+            id="r_N_s_N",
+        ),
+        # If checks for r and point-at-infinity are missing, the h=0 and r=0
+        # zero both u1 and u2, so the computed R is the point at infinity,
+        # and the signature may be considered valid in such implementation.
+        pytest.param(
+            H(0) + R(0) + Spec.S0 + X(Spec.Gx) + Y(Spec.Gy),
+            id="hash_0_r_0",
+        ),
+        pytest.param(
+            H(0) + R(Spec.N) + Spec.S0 + X(Spec.Gx) + Y(Spec.Gy),
+            id="hash_0_r_N",
+        ),
+        pytest.param(
+            H(Spec.N) + R(0) + Spec.S0 + X(Spec.Gx) + Y(Spec.Gy),
+            id="hash_N_r_0",
+        ),
+        pytest.param(
+            H(Spec.N) + R(Spec.N) + Spec.S0 + X(Spec.Gx) + Y(Spec.Gy),
+            id="hash_N_r_N",
+        ),
+        pytest.param(
+            Spec.H0 + R(Spec.Gx) + S((2**256 - 1) % Spec.N) + X(Spec.Gx) + Y(Spec.Gy),
+            id="s_max_mod_N",
+        ),
+        pytest.param(
+            H(Spec.N + 1 - Spec.Gx) + R(Spec.Gx) + S(Spec.N + 1) + X(Spec.Gx) + Y(Spec.Gy),
+            id="s_N_plus_1",
+        ),
+        pytest.param(
+            H(((2**256 - 1) % Spec.N) - Spec.Gx + Spec.N)
+            + R(Spec.Gx)
+            + S(2**256 - 1)
+            + X(Spec.Gx)
+            + Y(Spec.Gy),
+            id="s_max",
         ),
         pytest.param(
             Spec.H0 + Spec.R0 + Spec.S0 + X(Spec.P) + Spec.Y0,
@@ -657,7 +754,25 @@ def test_precompile_will_return_success_with_tx_value(
             + X(0x0AD99500288D466940031D72A9F5445A4D43784640855BF0A69874D2DE5FE103)
             + Y(0xC5011E6EF2C42DCD50D5D3D29F99AE6EBA2C80C9244F4C5422F0979FF0C3BA5E),
             Spec.SUCCESS_RETURN_VALUE,
-            id="modular_comparison_x_coordinate_exceeds_n",
+            id="x_coordinate_exceeds_n",
+        ),
+        pytest.param(
+            Spec.H1 + Spec.R1 + Spec.S1 + Spec.X1 + Spec.Y1,
+            Spec.SUCCESS_RETURN_VALUE,
+            id="x_coordinate_exceeds_n_v2",
+        ),
+        # Test cases where compute x-coordinate exceeds curve order N,
+        # but the signature is invalid.
+        # This is a modification of the above test by taking -h, -r, -s
+        # what gives the same u1 and u2 and in the result the same point R.
+        pytest.param(
+            H(Spec.N - Spec.H1.value)
+            + R(Spec.N - Spec.R1.value)
+            + S(Spec.N - Spec.S1.value)
+            + Spec.X1
+            + Spec.Y1,
+            Spec.INVALID_RETURN_VALUE,
+            id="invalid_x_coordinate_exceeds_n",
         ),
         pytest.param(
             Spec.H0
