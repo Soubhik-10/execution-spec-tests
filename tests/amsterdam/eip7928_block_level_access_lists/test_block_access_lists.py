@@ -4,17 +4,18 @@ from typing import Dict
 
 import pytest
 
-from ethereum_test_base_types import Address
+from ethereum_test_base_types import AccessList, Address, Hash
+from ethereum_test_specs.blockchain import Header
 from ethereum_test_tools import (
     Account,
     Alloc,
     Block,
     BlockchainTestFiller,
     Initcode,
-    Storage,
     Transaction,
     compute_create_address,
 )
+from ethereum_test_types import Environment
 from ethereum_test_types.block_access_list import (
     BalAccountExpectation,
     BalBalanceChange,
@@ -124,89 +125,6 @@ def test_bal_balance_changes(
         post={
             alice: Account(nonce=1, balance=alice_final_balance),
             bob: Account(balance=100),
-        },
-    )
-
-
-def test_bal_storage_writes(
-    pre: Alloc,
-    blockchain_test: BlockchainTestFiller,
-):
-    """Ensure BAL captures storage writes."""
-    storage = Storage({0x01: 0})  # type: ignore
-    storage_contract = pre.deploy_contract(
-        code=Op.SSTORE(0x01, 0x42) + Op.STOP,
-        # pre-fill with canary value to detect writes in post-state
-        storage=storage.canary(),
-    )
-    alice = pre.fund_eoa()
-
-    tx = Transaction(
-        sender=alice,
-        to=storage_contract,
-        gas_limit=100000,
-    )
-
-    block = Block(
-        txs=[tx],
-        expected_block_access_list=BlockAccessListExpectation(
-            account_expectations={
-                storage_contract: BalAccountExpectation(
-                    storage_changes=[
-                        BalStorageSlot(
-                            slot=0x01,
-                            slot_changes=[BalStorageChange(tx_index=1, post_value=0x42)],
-                        )
-                    ],
-                ),
-            }
-        ),
-    )
-
-    blockchain_test(
-        pre=pre,
-        blocks=[block],
-        post={
-            alice: Account(nonce=1),
-            storage_contract: Account(storage={0x01: 0x42}),
-        },
-    )
-
-
-def test_bal_storage_reads(
-    pre: Alloc,
-    blockchain_test: BlockchainTestFiller,
-):
-    """Ensure BAL captures storage reads."""
-    storage_contract = pre.deploy_contract(
-        code=Op.SLOAD(0x01) + Op.STOP,
-        storage={0x01: 0x42},
-    )
-    alice = pre.fund_eoa()
-
-    tx = Transaction(
-        sender=alice,
-        to=storage_contract,
-        gas_limit=100000,
-    )
-
-    block = Block(
-        txs=[tx],
-        expected_block_access_list=BlockAccessListExpectation(
-            account_expectations={
-                storage_contract: BalAccountExpectation(
-                    storage_reads=[0x01],
-                ),
-            }
-        ),
-    )
-
-    blockchain_test(
-        pre=pre,
-        blocks=[block],
-        post={
-            alice: Account(nonce=1),
-            storage_contract: Account(storage={0x01: 0x42}),
         },
     )
 
@@ -429,7 +347,7 @@ def test_bal_self_destruct(
         pytest.param(lambda target_addr: Op.EXTCODESIZE(target_addr), id="extcodesize"),
         pytest.param(lambda target_addr: Op.EXTCODECOPY(target_addr, 0, 0, 32), id="extcodecopy"),
         pytest.param(lambda target_addr: Op.EXTCODEHASH(target_addr), id="extcodehash"),
-        pytest.param(lambda target_addr: Op.CALL(0, target_addr, 50, 0, 0, 0, 0), id="call"),
+        pytest.param(lambda target_addr: Op.CALL(0, target_addr, 0, 0, 0, 0, 0), id="call"),
         pytest.param(
             lambda target_addr: Op.CALLCODE(0, target_addr, 0, 0, 0, 0, 0), id="callcode"
         ),
@@ -679,14 +597,13 @@ def test_bal_block_rewards(
     charlie = pre.fund_eoa(amount=0)  # fee recipient
 
     intrinsic_gas_calculator = fork.transaction_intrinsic_cost_calculator()
-    intrinsic_gas_cost = intrinsic_gas_calculator(
+    intrinsic_gas = intrinsic_gas_calculator(
         calldata=b"",
         contract_creation=False,
         access_list=[],
     )
-    tx_gas_limit = intrinsic_gas_cost + 1000  # add a small buffer
+    tx_gas_limit = intrinsic_gas + 1000  # add a small buffer
     gas_price = 0xA
-    base_fee_per_gas = 0x2  # Set base fee for EIP-1559
 
     tx = Transaction(
         sender=alice,
@@ -698,16 +615,23 @@ def test_bal_block_rewards(
 
     # EIP-1559 fee calculation:
     # - Total gas cost
-    total_gas_cost = intrinsic_gas_cost * gas_price
+    total_gas_cost = intrinsic_gas * gas_price
     # - Tip portion
-    tip_to_charlie = intrinsic_gas_cost * (gas_price - base_fee_per_gas)
+
+    genesis_env = Environment(base_fee_per_gas=0x7)
+    base_fee_per_gas = fork.base_fee_per_gas_calculator()(
+        parent_base_fee_per_gas=genesis_env.base_fee_per_gas,
+        parent_gas_used=0,
+        parent_gas_limit=genesis_env.gas_limit,
+    )
+    tip_to_charlie = (gas_price - base_fee_per_gas) * intrinsic_gas
 
     alice_final_balance = alice_initial_balance - 100 - total_gas_cost
 
     block = Block(
         txs=[tx],
         fee_recipient=charlie,  # Set Charlie as the fee recipient
-        base_fee_per_gas=base_fee_per_gas,  # Set base fee for EIP-1559
+        header_verify=Header(base_fee_per_gas=base_fee_per_gas),
         expected_block_access_list=BlockAccessListExpectation(
             account_expectations={
                 alice: BalAccountExpectation(
@@ -730,4 +654,220 @@ def test_bal_block_rewards(
         pre=pre,
         blocks=[block],
         post={},
+        genesis_environment=genesis_env,
+    )
+
+
+def test_bal_2930_account_listed_but_untouched(
+    pre: Alloc,
+    blockchain_test: BlockchainTestFiller,
+):
+    """Ensure BAL excludes untouched access list accounts."""
+    alice = pre.fund_eoa()
+    bob = pre.fund_eoa()
+    oracle = pre.deploy_contract(code=Op.STOP)
+
+    access_list = AccessList(
+        address=oracle,
+        storage_keys=[Hash(0x1)],
+    )
+
+    gas_limit = 1_000_000
+
+    tx = Transaction(ty=1, sender=alice, to=bob, gas_limit=gas_limit, access_list=[access_list])
+
+    block = Block(
+        txs=[tx],
+        expected_block_access_list=BlockAccessListExpectation(
+            account_expectations={
+                alice: BalAccountExpectation(
+                    nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
+                ),
+                # The address excluded from BAL since state is not accessed
+                oracle: None,
+            }
+        ),
+    )
+
+    blockchain_test(
+        pre=pre,
+        blocks=[block],
+        post={
+            alice: Account(nonce=1),
+        },
+    )
+
+
+def test_bal_2930_slot_listed_but_untouched(
+    pre: Alloc,
+    blockchain_test: BlockchainTestFiller,
+    fork,
+):
+    """Ensure BAL excludes untouched access list storage slots."""
+    alice = pre.fund_eoa()
+    pure_calculator = pre.deploy_contract(
+        # Pure add operation
+        Op.ADD(35, 7)
+    )
+
+    access_list = AccessList(
+        address=pure_calculator,
+        storage_keys=[Hash(0x1)],
+    )
+
+    intrinsic_gas_calculator = fork.transaction_intrinsic_cost_calculator()
+    gas_limit = (
+        intrinsic_gas_calculator(
+            calldata=b"",
+            contract_creation=False,
+            access_list=[access_list],
+        )
+        + 1000
+    )  # intrinsic + buffer
+
+    tx = Transaction(
+        ty=1, sender=alice, to=pure_calculator, gas_limit=gas_limit, access_list=[access_list]
+    )
+
+    block = Block(
+        txs=[tx],
+        expected_block_access_list=BlockAccessListExpectation(
+            account_expectations={
+                alice: BalAccountExpectation(
+                    nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
+                ),
+                # The account was loaded.
+                pure_calculator: BalAccountExpectation(),
+            }
+        ),
+    )
+
+    blockchain_test(
+        pre=pre,
+        blocks=[block],
+        post={
+            alice: Account(nonce=1),
+        },
+    )
+
+
+def test_bal_2930_slot_listed_and_unlisted_writes(
+    pre: Alloc,
+    blockchain_test: BlockchainTestFiller,
+    fork,
+):
+    """
+    Ensure BAL includes storage writes regardless of access list presence.
+    """
+    alice = pre.fund_eoa()
+    storage_writer = pre.deploy_contract(code=Op.SSTORE(0x01, 0x42) + Op.SSTORE(0x02, 0x43))
+
+    # Access list only includes slot 0x01, but contract writes to both
+    # 0x01 and 0x02
+    access_list = AccessList(
+        address=storage_writer,
+        storage_keys=[Hash(0x01)],
+    )
+
+    intrinsic_gas_calculator = fork.transaction_intrinsic_cost_calculator()
+    gas_limit = (
+        intrinsic_gas_calculator(
+            calldata=b"",
+            contract_creation=False,
+            access_list=[access_list],
+        )
+        + 50000
+    )  # intrinsic + buffer for storage writes
+
+    tx = Transaction(
+        ty=1, sender=alice, to=storage_writer, gas_limit=gas_limit, access_list=[access_list]
+    )
+
+    block = Block(
+        txs=[tx],
+        expected_block_access_list=BlockAccessListExpectation(
+            account_expectations={
+                alice: BalAccountExpectation(
+                    nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
+                ),
+                storage_writer: BalAccountExpectation(
+                    storage_changes=[
+                        BalStorageSlot(
+                            slot=0x01,
+                            slot_changes=[BalStorageChange(tx_index=1, post_value=0x42)],
+                        ),
+                        BalStorageSlot(
+                            slot=0x02,
+                            slot_changes=[BalStorageChange(tx_index=1, post_value=0x43)],
+                        ),
+                    ],
+                ),
+            }
+        ),
+    )
+
+    blockchain_test(
+        pre=pre,
+        blocks=[block],
+        post={
+            alice: Account(nonce=1),
+            storage_writer: Account(storage={0x01: 0x42, 0x02: 0x43}),
+        },
+    )
+
+
+def test_bal_2930_slot_listed_and_unlisted_reads(
+    pre: Alloc,
+    blockchain_test: BlockchainTestFiller,
+    fork,
+):
+    """Ensure BAL includes storage reads regardless of access list presence."""
+    alice = pre.fund_eoa()
+    storage_reader = pre.deploy_contract(
+        code=Op.SLOAD(0x01) + Op.SLOAD(0x02),
+        storage={0x01: 0x42, 0x02: 0x43},  # Pre-populate storage with values
+    )
+
+    # Access list only includes slot 0x01, but contract reads from both
+    # 0x01 and 0x02
+    access_list = AccessList(
+        address=storage_reader,
+        storage_keys=[Hash(0x01)],
+    )
+
+    intrinsic_gas_calculator = fork.transaction_intrinsic_cost_calculator()
+    gas_limit = (
+        intrinsic_gas_calculator(
+            calldata=b"",
+            contract_creation=False,
+            access_list=[access_list],
+        )
+        + 50000
+    )  # intrinsic + buffer for storage reads
+
+    tx = Transaction(
+        ty=1, sender=alice, to=storage_reader, gas_limit=gas_limit, access_list=[access_list]
+    )
+
+    block = Block(
+        txs=[tx],
+        expected_block_access_list=BlockAccessListExpectation(
+            account_expectations={
+                alice: BalAccountExpectation(
+                    nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
+                ),
+                storage_reader: BalAccountExpectation(
+                    storage_reads=[0x01, 0x02],
+                ),
+            }
+        ),
+    )
+
+    blockchain_test(
+        pre=pre,
+        blocks=[block],
+        post={
+            alice: Account(nonce=1),
+            storage_reader: Account(storage={0x01: 0x42, 0x02: 0x43}),
+        },
     )

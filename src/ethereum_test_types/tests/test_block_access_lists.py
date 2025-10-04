@@ -69,6 +69,31 @@ def test_address_exclusion_validation_raises_when_address_is_present():
         expectation.verify_against(actual_bal)
 
 
+def test_empty_account_changes_raises_when_changes_are_present():
+    """
+    Test that validation fails when expected empty changes but actual
+    has changes.
+    """
+    alice = Address(0xA)
+
+    actual_bal = BlockAccessList(
+        [
+            BalAccountChange(
+                address=alice,
+                nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
+            ),
+        ]
+    )
+
+    expectation = BlockAccessListExpectation(account_expectations={alice: BalAccountExpectation()})
+
+    with pytest.raises(
+        BlockAccessListValidationError,
+        match=f"No account changes expected for {alice}",
+    ):
+        expectation.verify_against(actual_bal)
+
+
 def test_empty_list_validation():
     """Test that empty list validates correctly."""
     alice = Address(0xA)
@@ -77,8 +102,11 @@ def test_empty_list_validation():
         [
             BalAccountChange(
                 address=alice,
-                nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
-                balance_changes=[],  # no balance changes
+                nonce_changes=[],
+                balance_changes=[],
+                code_changes=[],
+                storage_changes=[],
+                storage_reads=[],
             ),
         ]
     )
@@ -86,8 +114,11 @@ def test_empty_list_validation():
     expectation = BlockAccessListExpectation(
         account_expectations={
             alice: BalAccountExpectation(
-                nonce_changes=[BalNonceChange(tx_index=1, post_nonce=1)],
-                balance_changes=[],  # explicitly expect no balance changes
+                nonce_changes=[],
+                balance_changes=[],
+                code_changes=[],
+                storage_changes=[],
+                storage_reads=[],
             ),
         }
     )
@@ -95,29 +126,56 @@ def test_empty_list_validation():
     expectation.verify_against(actual_bal)
 
 
-def test_empty_list_validation_fails():
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ["nonce_changes", BalNonceChange(tx_index=1, post_nonce=1)],
+        ["balance_changes", BalBalanceChange(tx_index=1, post_balance=100)],
+        ["code_changes", BalCodeChange(tx_index=1, new_code=b"code")],
+        [
+            "storage_changes",
+            BalStorageSlot(
+                slot=0x01,
+                slot_changes=[BalStorageChange(tx_index=1, post_value=0x42)],
+            ),
+        ],
+        ["storage_reads", 0x01],
+    ],
+)
+def test_empty_list_validation_fails(field: str, value) -> None:
     """Test that validation fails when expecting empty but field has values."""
     alice = Address(0xA)
 
-    actual_bal = BlockAccessList(
-        [
-            BalAccountChange(
-                address=alice,
-                balance_changes=[BalBalanceChange(tx_index=1, post_balance=100)],
-            ),
-        ]
+    alice_acct_change = BalAccountChange(
+        address=alice,
+        storage_reads=[0x02],
     )
 
-    expectation = BlockAccessListExpectation(
-        account_expectations={
-            # expect no balance changes (wrongly)
-            alice: BalAccountExpectation(balance_changes=[]),
-        }
+    if field == "storage_reads":
+        alice_acct_change.storage_reads = [value]
+        # set another field to non-empty to avoid all-empty account change
+        alice_acct_change.nonce_changes = [BalNonceChange(tx_index=1, post_nonce=1)]
+
+    else:
+        setattr(alice_acct_change, field, [value])
+    actual_bal = BlockAccessList([alice_acct_change])
+
+    alice_acct_expectation = BalAccountExpectation(
+        storage_reads=[0x02],
     )
+    if field == "storage_reads":
+        alice_acct_expectation.storage_reads = []
+        # match the filled field in actual to avoid all-empty
+        # account expectation
+        alice_acct_expectation.nonce_changes = [BalNonceChange(tx_index=1, post_nonce=1)]
+    else:
+        setattr(alice_acct_expectation, field, [])
+
+    expectation = BlockAccessListExpectation(account_expectations={alice: alice_acct_expectation})
 
     with pytest.raises(
         BlockAccessListValidationError,
-        match="Expected balance_changes to be empty",
+        match=f"Expected {field} to be empty",
     ):
         expectation.verify_against(actual_bal)
 

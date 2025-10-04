@@ -168,6 +168,13 @@ class BlockAccessListExpectation(CamelModel):
                     raise BlockAccessListValidationError(
                         f"Address {address} should not be in BAL but was found"
                     )
+            elif expectation == BalAccountExpectation():
+                # explicit check for NO account changes for the address
+                if actual_accounts_by_addr.get(address) != BalAccountChange(address=address):
+                    raise BlockAccessListValidationError(
+                        f"No account changes expected for {address} but found "
+                        f"changes: {actual_accounts_by_addr[address]}"
+                    )
             else:
                 # check address is present and validate changes
                 if address not in actual_accounts_by_addr:
@@ -305,6 +312,10 @@ class BlockAccessListExpectation(CamelModel):
             if field_name not in expected.model_fields_set:
                 continue
 
+            # Check if explicitly set to empty but actual has values
+            if not expected_list and actual_list:
+                raise AssertionError(f"Expected {field_name} to be empty but found {actual_list}")
+
             if field_name == "storage_reads":
                 # storage_reads is a simple list of StorageKey
                 actual_idx = 0
@@ -377,49 +388,39 @@ class BlockAccessListExpectation(CamelModel):
 
             else:
                 # Handle nonce_changes, balance_changes, code_changes
-                if not expected_list and actual_list:
-                    # Empty expected but non-empty actual - error
-                    item_type = field_name.replace("_changes", "")
-                    raise AssertionError(
-                        f"Expected {field_name} to be empty but found {actual_list}"
-                    )
-
+                # Create tuples for comparison (ordering already validated)
+                if field_name == "nonce_changes":
+                    expected_tuples = [(c.tx_index, c.post_nonce) for c in expected_list]
+                    actual_tuples = [(c.tx_index, c.post_nonce) for c in actual_list]
+                    item_type = "nonce"
+                elif field_name == "balance_changes":
+                    expected_tuples = [(c.tx_index, int(c.post_balance)) for c in expected_list]
+                    actual_tuples = [(c.tx_index, int(c.post_balance)) for c in actual_list]
+                    item_type = "balance"
+                elif field_name == "code_changes":
+                    expected_tuples = [(c.tx_index, bytes(c.new_code)) for c in expected_list]
+                    actual_tuples = [(c.tx_index, bytes(c.new_code)) for c in actual_list]
+                    item_type = "code"
                 else:
-                    # Create tuples for comparison (ordering already validated)
-                    if field_name == "nonce_changes":
-                        expected_tuples = [(c.tx_index, c.post_nonce) for c in expected_list]
-                        actual_tuples = [(c.tx_index, c.post_nonce) for c in actual_list]
-                        item_type = "nonce"
-                    elif field_name == "balance_changes":
-                        expected_tuples = [
-                            (c.tx_index, int(c.post_balance)) for c in expected_list
-                        ]
-                        actual_tuples = [(c.tx_index, int(c.post_balance)) for c in actual_list]
-                        item_type = "balance"
-                    elif field_name == "code_changes":
-                        expected_tuples = [(c.tx_index, bytes(c.new_code)) for c in expected_list]
-                        actual_tuples = [(c.tx_index, bytes(c.new_code)) for c in actual_list]
-                        item_type = "code"
-                    else:
-                        # sanity check
-                        raise ValueError(f"Unexpected field type: {field_name}")
+                    # sanity check
+                    raise ValueError(f"Unexpected field type: {field_name}")
 
-                    # Check that expected forms a subsequence of actual
-                    actual_idx = 0
-                    for exp_tuple in expected_tuples:
-                        found = False
-                        while actual_idx < len(actual_tuples):
-                            if actual_tuples[actual_idx] == exp_tuple:
-                                found = True
-                                actual_idx += 1
-                                break
+                # Check that expected forms a subsequence of actual
+                actual_idx = 0
+                for exp_tuple in expected_tuples:
+                    found = False
+                    while actual_idx < len(actual_tuples):
+                        if actual_tuples[actual_idx] == exp_tuple:
+                            found = True
                             actual_idx += 1
+                            break
+                        actual_idx += 1
 
-                        if not found:
-                            raise AssertionError(
-                                f"{item_type.capitalize()} change {exp_tuple} not found "
-                                f"or not in correct order. Actual changes: {actual_tuples}"
-                            )
+                    if not found:
+                        raise AssertionError(
+                            f"{item_type.capitalize()} change {exp_tuple} not found "
+                            f"or not in correct order. Actual changes: {actual_tuples}"
+                        )
 
 
 __all__ = [

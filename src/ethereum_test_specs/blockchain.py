@@ -4,7 +4,7 @@ from pprint import pprint
 from typing import Any, Callable, ClassVar, Dict, Generator, List, Sequence, Tuple, Type
 
 import pytest
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_serializer
 
 from ethereum_clis import BlockExceptionWithMessage, Result, TransitionTool
 from ethereum_test_base_types import (
@@ -141,15 +141,14 @@ class Header(CamelModel):
     engine_api_error_code=EngineAPIError.InvalidParams, ) ```
     """
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        # explicitly set Removable items to None so they are not included in
-        # the serialization (in combination with exclude_None=True in
-        # model.dump()).
-        json_encoders={
-            Removable: lambda x: None,
-        },
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @model_serializer(mode="wrap", when_used="json")
+    def _serialize_model(self, serializer, info):
+        """Exclude Removable fields from serialization."""
+        del info
+        data = serializer(self)
+        return {k: v for k, v in data.items() if not isinstance(v, Removable)}
 
     @field_validator("withdrawals_root", mode="before")
     @classmethod
@@ -525,7 +524,7 @@ class BlockchainTest(BaseTest):
                 env=env,
                 fork=fork,
                 chain_id=self.chain_id,
-                reward=fork.get_reward(env.number, env.timestamp),
+                reward=fork.get_reward(block_number=env.number, timestamp=env.timestamp),
                 blob_schedule=fork.blob_schedule(),
             ),
             debug_output_path=self.get_next_transition_tool_output_path(),
@@ -538,7 +537,11 @@ class BlockchainTest(BaseTest):
         # executing the block by simply counting the type-3 txs, we need to set
         # the correct value by default.
         blob_gas_used: int | None = None
-        if (blob_gas_per_blob := fork.blob_gas_per_blob(env.number, env.timestamp)) > 0:
+        if (
+            blob_gas_per_blob := fork.blob_gas_per_blob(
+                block_number=env.number, timestamp=env.timestamp
+            )
+        ) > 0:
             blob_gas_used = blob_gas_per_blob * count_blobs(txs)
 
         header = FixtureHeader(
@@ -576,7 +579,7 @@ class BlockchainTest(BaseTest):
                 )
 
         requests_list: List[Bytes] | None = None
-        if fork.header_requests_required(header.number, header.timestamp):
+        if fork.header_requests_required(block_number=header.number, timestamp=header.timestamp):
             assert transition_tool_output.result.requests is not None, (
                 "Requests are required for this block"
             )
@@ -595,7 +598,7 @@ class BlockchainTest(BaseTest):
             header.requests_hash = Hash(Requests(requests_lists=list(block.requests)))
             requests_list = block.requests
 
-        if fork.header_bal_hash_required(header.number, header.timestamp):
+        if fork.header_bal_hash_required(block_number=header.number, timestamp=header.timestamp):
             assert transition_tool_output.result.block_access_list is not None, (
                 "Block access list is required for this block but was not provided "
                 "by the transition tool"
@@ -799,7 +802,7 @@ class BlockchainTest(BaseTest):
                 )
         self.check_exception_test(exception=invalid_blocks > 0)
         fcu_version = fork.engine_forkchoice_updated_version(
-            built_block.header.number, built_block.header.timestamp
+            block_number=built_block.header.number, timestamp=built_block.header.timestamp
         )
         assert fcu_version is not None, (
             "A hive fixture was requested but no forkchoice update is defined."
@@ -899,9 +902,12 @@ class BlockchainTest(BaseTest):
             blocks: List[List[Transaction]] = []
             for block in self.blocks:
                 blocks += [block.txs]
+            # Pass gas validation params for benchmark tests
             return TransactionPost(
                 blocks=blocks,
                 post=self.post,
+                expected_benchmark_gas_used=self.expected_benchmark_gas_used,
+                skip_gas_used_validation=self.skip_gas_used_validation,
             )
         raise Exception(f"Unsupported execute format: {execute_format}")
 

@@ -278,7 +278,7 @@ class StateTest(BaseTest):
         # We can't generate a state test fixture that names a transition fork,
         # so we get the fork at the block number and timestamp of the state
         # test
-        fork = fork.fork_at(self.env.number, self.env.timestamp)
+        fork = fork.fork_at(block_number=self.env.number, timestamp=self.env.timestamp)
 
         env = self.env.set_fork_requirements(fork)
         tx = self.tx.with_signature_and_sender(keep_secret_key=True)
@@ -444,9 +444,12 @@ class StateTest(BaseTest):
     ) -> BaseExecute:
         """Generate the list of test fixtures."""
         if execute_format == TransactionPost:
+            # Pass gas validation params for benchmark tests
             return TransactionPost(
                 blocks=[[self.tx]],
                 post=self.post,
+                expected_benchmark_gas_used=self.expected_benchmark_gas_used,
+                skip_gas_used_validation=self.skip_gas_used_validation,
             )
         raise Exception(f"Unsupported execute format: {execute_format}")
 

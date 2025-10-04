@@ -22,17 +22,25 @@ Test fixtures for use by clients are available for each release on the [Github r
 #### `consume`
 
 - ✨ Add retry logic to RPC requests to fix flaky connection issues in Hive ([#2205](https://github.com/ethereum/execution-spec-tests/pull/2205)).
+- 🛠️ Mark `consume sync` tests as `flaky` with 3 retires due to client sync inconsistencies ([#2252](https://github.com/ethereum/execution-spec-tests/pull/2252)).
 
 ### 📋 Misc
 
 - ✨ Add tighter validation for EIP-7928 model coming from t8n when filling ([#2138](https://github.com/ethereum/execution-spec-tests/pull/2138)).
 - ✨ Add flexible API for absence checks for EIP-7928 (BAL) tests ([#2124](https://github.com/ethereum/execution-spec-tests/pull/2124)).
-- 🐞 Use ``engine_newPayloadV5`` for `>=Amsterdam` forks in `consume engine` ([#2170](https://github.com/ethereum/execution-spec-tests/pull/2170)).
+- 🐞 Use `engine_newPayloadV5` for `>=Amsterdam` forks in `consume engine` ([#2170](https://github.com/ethereum/execution-spec-tests/pull/2170)).
 - 🔀 Refactor EIP-7928 (BAL) absence checks into a friendlier class-based DevEx ([#2175](https://github.com/ethereum/execution-spec-tests/pull/2175)).
+- 🐞 Tighten up validation for empty lists on Block-Level Access List tests ([#2118](https://github.com/ethereum/execution-spec-tests/pull/2118)).
+- ✨ Added the `MemoryVariable` EVM abstraction to generate more readable bytecode when there's heavy use of variables that are stored in memory ([#1609](https://github.com/ethereum/execution-spec-tests/pull/1609)).
+- 🐞 Fix an issue with `test_bal_block_rewards` where the block base fee was wrongfully overridden ([#2262](https://github.com/ethereum/execution-spec-tests/pull/2262)).
 
 ### 🧪 Test Cases
 
+- ✨ Add safe EIP-6110 workaround to allow Geth/Reth to pass invalid deposit request tests even thought they are out of spec ([#2177](https://github.com/ethereum/execution-spec-tests/pull/2177), [#2233](https://github.com/ethereum/execution-spec-tests/pull/2233)).
 - ✨ Add an EIP-7928 test case targeting the `SELFDESTRUCT` opcode. ([#2159](https://github.com/ethereum/execution-spec-tests/pull/2159)).
+- ✨ Add essential tests for coverage gaps in EIP-7951 (`p256verify` precompile) ([#2179](https://github.com/ethereum/execution-spec-tests/pull/2159), [#2203](https://github.com/ethereum/execution-spec-tests/pull/2203), [#2215](https://github.com/ethereum/execution-spec-tests/pull/2215), [#2216](https://github.com/ethereum/execution-spec-tests/pull/2216), [#2217](https://github.com/ethereum/execution-spec-tests/pull/2217), [#2218](https://github.com/ethereum/execution-spec-tests/pull/2218), [#2221](https://github.com/ethereum/execution-spec-tests/pull/2221), [#2229](https://github.com/ethereum/execution-spec-tests/pull/2229), [#2230](https://github.com/ethereum/execution-spec-tests/pull/2230), [#2237](https://github.com/ethereum/execution-spec-tests/pull/2237), [#2238](https://github.com/ethereum/execution-spec-tests/pull/2238)).
+- ✨ Add EIP-7928 successful and OOG single-opcode tests ([#2118](https://github.com/ethereum/execution-spec-tests/pull/2118)).
+- ✨ Add EIP-7928 tests for EIP-2930 interactions ([#2167](https://github.com/ethereum/execution-spec-tests/pull/2167)).
 
 ## [v5.0.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v5.0.0) - 2025-09-05
 
@@ -236,7 +244,8 @@ Users can select any of the artifacts depending on their benchmarking or testing
 
 ### 🧪 Test Cases
 
-- ✨ [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951): Add additional test cases for modular comparison and initcode context ([#2023](https://github.com/ethereum/execution-spec-tests/pull/2023), & [#2068](https://github.com/ethereum/execution-spec-tests/pull/2068)).
+- ✨ [BloatNet](https://bloatnet.info)/Multidimensional Metering: Add benchmarks to be used as part of the BloatNet project and also for Multidimensional Metering.
+- ✨ [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951): Add additional test cases for modular comparison.
 - 🔀 Refactored `BLOBHASH` opcode context tests to use the `pre_alloc` plugin in order to avoid contract and EOA address collisions ([#1637](https://github.com/ethereum/execution-spec-tests/pull/1637)).
 - 🔀 Refactored `SELFDESTRUCT` opcode collision tests to use the `pre_alloc` plugin in order to avoid contract and EOA address collisions ([#1643](https://github.com/ethereum/execution-spec-tests/pull/1643)).
 - ✨ EIP-7594: Sanity test cases to send blob transactions and verify `engine_getBlobsVX` using the `execute` command ([#1644](https://github.com/ethereum/execution-spec-tests/pull/1644),[#1884](https://github.com/ethereum/execution-spec-tests/pull/1884)).
