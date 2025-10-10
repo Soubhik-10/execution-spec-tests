@@ -120,7 +120,7 @@ class Environment(EnvironmentGeneric[ZeroPaddedHexNumber]):
     bal_hash: Hash | None = Field(None)
     block_access_lists: Bytes | None = Field(None)
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def parent_hash(self) -> Hash | None:
         """
@@ -196,7 +196,7 @@ class Environment(EnvironmentGeneric[ZeroPaddedHexNumber]):
         digest = hashlib.sha256(hash_string.encode("utf-8")).digest()
         return int.from_bytes(digest[:8], byteorder="big")
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Check if two environment objects are equal."""
         if not isinstance(other, Environment):
             return False

@@ -98,7 +98,7 @@ class TransactionTraces(CamelModel):
         return cls.model_validate(trace_dict)
 
     @staticmethod
-    def remove_gas(traces: List[TraceLine]):
+    def remove_gas(traces: List[TraceLine]) -> None:
         """
         Remove the GAS operation opcode result from the stack to make
         comparison possible even if the gas has been pushed to the stack.
@@ -135,7 +135,7 @@ class TransactionTraces(CamelModel):
                 return False
         return True
 
-    def print(self):
+    def print(self) -> None:
         """Print the traces in a readable format."""
         for exec_step, trace in enumerate(self.traces):
             print(f"Step {exec_step}:")
@@ -150,7 +150,7 @@ class Traces(EthereumTestRootModel):
 
     root: List[TransactionTraces]
 
-    def append(self, item: TransactionTraces):
+    def append(self, item: TransactionTraces) -> None:
         """Append the transaction traces to the current list."""
         self.root.append(item)
 
@@ -169,7 +169,7 @@ class Traces(EthereumTestRootModel):
         logger.debug("All traces are equivalent.")
         return True
 
-    def print(self):
+    def print(self) -> None:
         """Print the traces in a readable format."""
         for tx_number, tx in enumerate(self.root):
             print(f"Transaction {tx_number}:")
@@ -181,11 +181,19 @@ _opcode_synonyms = {
 }
 
 
-def validate_opcode(obj: Any) -> Opcodes | Opcode:
+class UndefinedOpcode(HexNumber):
+    """Undefined opcode."""
+
+    pass
+
+
+def validate_opcode(obj: Any) -> Opcodes | Opcode | UndefinedOpcode:
     """Validate an opcode from a string."""
-    if isinstance(obj, Opcode) or isinstance(obj, Opcodes):
+    if isinstance(obj, (Opcode, Opcodes, UndefinedOpcode)):
         return obj
     if isinstance(obj, str):
+        if obj.startswith("0x"):
+            return UndefinedOpcode(obj)
         if obj in _opcode_synonyms:
             obj = _opcode_synonyms[obj]
         for op in Opcodes:
@@ -198,7 +206,12 @@ class OpcodeCount(EthereumTestRootModel):
     """Opcode count returned from the evm tool."""
 
     root: Dict[
-        Annotated[Opcodes, PlainValidator(validate_opcode), PlainSerializer(lambda o: str(o))], int
+        Annotated[
+            Opcodes | UndefinedOpcode,
+            PlainValidator(validate_opcode),
+            PlainSerializer(lambda o: str(o)),
+        ],
+        int,
     ]
 
     def __add__(self, other: Self) -> Self:

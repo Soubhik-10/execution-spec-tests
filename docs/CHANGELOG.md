@@ -10,6 +10,26 @@ Test fixtures for use by clients are available for each release on the [Github r
 
 ### 🛠️ Framework
 
+#### `fill`
+
+#### `consume`
+
+### 📋 Misc
+
+### 🧪 Test Cases
+
+## [v5.3.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v5.3.0) - 2025-10-09
+
+## 🇯🇵 Summary
+
+EEST v5.3.0 is a follow-up from our main v5.0.0 [release](https://github.com/ethereum/execution-spec-tests/releases/tag/v5.0.0), with updated BPO1 and BPO2 values aligning with the testnet parameters.
+
+This release additionally includes fixes for tests in hive, as well as new test cases for EIP-7883, EIP-7934 and critical cases for EIP-7951 (added to EEST by @chfast following a coverage review of the test suite).
+
+## 🔑  Key Changes
+
+### 🛠️ Framework
+
 - ✨ Add benchmark-specific test wrapper (`benchmark_test`) that supports **EIP-7825** and create a benchmark code generator for common test pattern ([#1945](https://github.com/ethereum/execution-spec-tests/pull/1945)).
 
 #### `fill`
@@ -34,6 +54,7 @@ Test fixtures for use by clients are available for each release on the [Github r
 - 🐞 Tighten up validation for empty lists on Block-Level Access List tests ([#2118](https://github.com/ethereum/execution-spec-tests/pull/2118)).
 - ✨ Added the `MemoryVariable` EVM abstraction to generate more readable bytecode when there's heavy use of variables that are stored in memory ([#1609](https://github.com/ethereum/execution-spec-tests/pull/1609)).
 - 🐞 Fix an issue with `test_bal_block_rewards` where the block base fee was wrongfully overridden ([#2262](https://github.com/ethereum/execution-spec-tests/pull/2262)).
+- ✨ Complete EIP checklist for EIP-7934 and update the checklist template to include block-level constraint checks ([#2282](https://github.com/ethereum/execution-spec-tests/pull/2282)).
 
 ### 🧪 Test Cases
 
@@ -43,6 +64,8 @@ Test fixtures for use by clients are available for each release on the [Github r
 - ✨ Add EIP-7928 successful and OOG single-opcode tests ([#2118](https://github.com/ethereum/execution-spec-tests/pull/2118)).
 - ✨ Add EIP-7928 tests for EIP-2930 interactions ([#2167](https://github.com/ethereum/execution-spec-tests/pull/2167)).
 - ✨ Add EIP-7928 tests for NOOP operations ([#2178](https://github.com/ethereum/execution-spec-tests/pull/2178)).
+- ✨ Add EIP-7928 tests for net-zero balance transfers ([#2280](https://github.com/ethereum/execution-spec-tests/pull/2280)).
+- ✨ Add fork transition test cases for EIP-7934 ([#2282](https://github.com/ethereum/execution-spec-tests/pull/2282)).
 
 ## [v5.0.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v5.0.0) - 2025-09-05
 
