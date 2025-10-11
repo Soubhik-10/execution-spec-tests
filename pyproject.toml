@@ -164,17 +164,12 @@ ignore = [
     "D205", # Missing blank line after summary
     "D212", # Multi-line docstring summary should start at the first line
     "D401", # First line should be in imperative mood ("Do", not "Does")
-    # TODO: ethereum/execution-spec-tests#2176
-    "ARG002", # unused-method-argument
-    "ARG003", # unused-class-method-argument
-    "ARG005", # unused-lambda-argument
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG001"] # TODO: ethereum/execution-spec-tests#2188
 
 [tool.mypy]
-disable_error_code = ["import-untyped"]
 mypy_path = ["src", "$MYPY_CONFIG_FILE_DIR/stubs"]
 files = ["src", "tests"]
 exclude = [

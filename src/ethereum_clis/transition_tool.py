@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 from requests import Response
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import ReadTimeout
-from requests_unixsocket import Session
+from requests_unixsocket import Session  # type: ignore
 
 from ethereum_test_base_types import BlobSchedule
 from ethereum_test_exceptions import ExceptionMapper
@@ -384,6 +384,7 @@ class TransitionTool(EthereumCLI):
 
     def _generate_post_args(self, t8n_data: TransitionToolData) -> Dict[str, List[str] | str]:
         """Generate the arguments for the POST request to the t8n-server."""
+        del t8n_data
         return {}
 
     def _evaluate_server(
